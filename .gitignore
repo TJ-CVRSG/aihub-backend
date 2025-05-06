@@ -1,0 +1,6 @@
+/runs
+# 忽略 weights 文件夹中的所有内容
+weights/*
+
+# 但保留 .gitkeep（或其他标记文件）
+!weights/.gitkeep
