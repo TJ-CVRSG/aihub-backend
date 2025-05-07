@@ -786,30 +786,26 @@ async def send_example_training_results(model_id: int, train_details: dict):
             del training_status[model_id]
 
 
+def websocket_publish(message):
+    if main_event_loop:
+        asyncio.run_coroutine_threadsafe(message_queue.put(message), main_event_loop)
+    else:
+        print("主事件循环未设置，无法发送消息。")
+
 # 训练回调
 def on_train_epoch_end(trainer):
-    print("进入训练后回调函数！！")
+    print("进入训练后回调函数")
     
     # curr_epoch = trainer.epoch + 1
     # text = f"Epoch Number: {curr_epoch}/{trainer.epochs} finished"
     # print(text)
     # print("-" * 50)
-    
-    # import pprint
-    # # 添加以下代码以查看 trainer 的属性和成员
-    # print("Trainer 的所有属性和方法:")
-    # attrs = dir(trainer)
-    # for attr in attrs:
-    #     try:
-    #         value = getattr(trainer, attr)
-    #         print(f"{attr}: {value}")
-    #     except AttributeError:
-    #         print(f"{attr}: (不可访问)")
-    # print("\nTrainer 的可变属性 (vars):")
-    # pprint.pprint(vars(trainer))
 
+    # instance_variables = vars(trainer)
+    # print(instance_variables)
+    
     try:
-        model_id = 0  # 这里应该是从训练配置中获取的模型ID
+        model_id = 1  # 这里应该是从训练配置中获取的模型ID
         
         
         loss_dict = trainer.label_loss_items(trainer.tloss, prefix="train")
@@ -818,85 +814,33 @@ def on_train_epoch_end(trainer):
 
         
         data = {
-            "epoch": trainer.epoch,
+            "epoch": trainer.epoch + 1,
             "train/box_loss": loss_dict.get('train/box_loss'),
-            "train/obj_loss": loss_dict.get('train/obj_loss'),
+            # "train/obj_loss": loss_dict.get('train/obj_loss'),
             "train/cls_loss": loss_dict.get('train/cls_loss'),
             "metrics/precision": metrics.get('metrics/precision(B)'),
             "metrics/recall": metrics.get('metrics/recall(B)'),
             "metrics/mAP_0.5": metrics.get('metrics/mAP50(B)'),
             "metrics/mAP_0.5:0.95": metrics.get('metrics/mAP50-95(B)'),
             "val/box_loss": metrics.get('val/box_loss'),
-            "val/obj_loss": metrics.get('val/obj_loss'),
+            # "val/obj_loss": metrics.get('val/obj_loss'),
             "val/cls_loss": metrics.get('val/cls_loss'),
             # Add learning rates if needed:
             # "x/lr0": trainer.optimizer.param_groups[0]["lr"] if hasattr(trainer, "optimizer") else None,
             # "x/lr1": trainer.optimizer.param_groups[1]["lr"] if hasattr(trainer, "optimizer") and len(trainer.optimizer.param_groups) > 1 else None,
             # "x/lr2": trainer.optimizer.param_groups[2]["lr"] if hasattr(trainer, "optimizer") and len(trainer.optimizer.param_groups) > 2 else None,
         }
-        
-        print(data)
 
-        # 确定训练状态
-        status = "training"
-        current_epoch = trainer.epoch
-        max_epochs = trainer.epochs
-        
-        # 如果是最后一个epoch，状态为finished
-        if current_epoch >= max_epochs:
-            status = "finished"
-            print(f"\n训练完成！总轮次: {current_epoch}/{max_epochs}")
-        # 检查是否早停（如果有early_stop标志或者通过其他条件判断）
-        elif hasattr(trainer, "early_stop") and trainer.early_stop:
-            status = "early_stop"
-            print(f"\n训练提前终止！轮次: {current_epoch}/{max_epochs}")
-        
+       
         # 构建消息
         message = json.dumps({
             "message": "训练结果数据",
-            "status": status,
+            "status": "training",
             "data": data
         })
+                
+        websocket_publish(message)
         
-        # asyncio.run_coroutine_threadsafe(message_queue.put(message), asyncio.get_event_loop())
-        
-        if main_event_loop:
-            asyncio.run_coroutine_threadsafe(message_queue.put(message), main_event_loop)
-        else:
-            print("主事件循环未设置，无法发送消息。")
-        
-        # # 使用新线程和事件循环发送WebSocket消息
-        # def send_ws_message():
-        #     loop = asyncio.new_event_loop()
-        #     asyncio.set_event_loop(loop)
-        #     try:
-        #         loop.run_until_complete(manager.broadcast_to_model(model_id, message))
-        #     finally:
-        #         print("线程结束")
-        #         loop.close()
-        
-        # # 在线程中执行异步发送
-        # import threading
-        # threading.Thread(target=send_ws_message).start()
-        # print(f"广播训练结果数据给模型ID {model_id}")
-        # manager.broadcast_to_model(model_id, message)
-        
-        # 获取事件循环并调度异步任务
-        # loop = asyncio.get_event_loop()
-        # future = asyncio.run_coroutine_threadsafe(
-        #     manager.broadcast_to_model(model_id, message), loop
-        # )
-        # # future.result()  # 等待任务完成（可选）
-        # print(f"广播训练结果数据给模型ID {model_id}")
-
-        # # 如果训练已完成或早停，发送额外的完成消息
-        # if status in ["finished", "early_stop"]:
-        #     complete_message = json.dumps({
-        #         "message": "训练结果数据发送完成",
-        #         "status": status
-        #     })
-        #     await manager.broadcast_to_model(model_id, complete_message)
-        #     print(f"广播训练完成状态: {complete_message}")
             
         #     # 清理训练状态
         #     if model_id in training_status:
@@ -904,19 +848,68 @@ def on_train_epoch_end(trainer):
         
     except Exception as e:
         print(f"发送训练回调数据时出错: {str(e)}")
+        
+# def on_train_end(trainer):
+#     # 切换训练状态
+#     model_id = 0
 
+#     current_epoch = trainer.epoch + 1
+#     max_epochs = trainer.epochs
+    
+#     # 如果是最后一个epoch，状态为finished
+#     if current_epoch >= max_epochs:
+#         status = "finished"
+#         training_status[model_id] = "finished"
+#         print(f"\n训练完成！总轮次: {current_epoch}/{max_epochs}")
+#     # 检查是否早停（如果有early_stop标志或者通过其他条件判断）
+#     elif current_epoch < max_epochs:
+#         status = "early_stop"
+#         training_status[model_id] = "early_stop"
+#         print(f"\n训练提前终止！轮次: {current_epoch}/{max_epochs}")
+    
+#     # 计算整体训练时间
+#     total_training_time = trainer.end_time - trainer.start_time
+#     print(f"训练结束！模型ID: {model_id}")
+#     print(f"总训练时间: {total_training_time}")
+    
+#     message = json.dumps({
+#         "message": "训练完成",
+#         "status": status,
+#         "total_training_time": str(total_training_time),
+#         "best_epoch": best_epoch,
+#         "best_accuracy": best_accuracy,
+#         "best_model_path": trainer.best
+#     })
+    
+#     websocket_publish(message)
 
-def run_training_process():
-    model=YOLO(model=r"weights\yolov5\yolov5su.pt")
-
-    model.add_callback("on_train_epoch_end", on_train_epoch_end)
-    model.train(data=r"D:\0_datasets\sar_video\split_car_dataset\sar.yaml",epochs=1000,batch=16,imgsz=640,device="0")
-
-
+#     print(f"最佳训练批次模型地址:{trainer.best} 精度: {trainer.best_accuracy}")
+    
+#     if model_id in training_status:
+#         del training_status[model_id]
+    
+        
 async def train_example():
     await asyncio.sleep(5)
     
     threading.Thread(target=run_training_process, daemon=True).start()
+
+def run_training_process():
+    model=YOLO("weights/yolov8/yolov8s.pt",task="detect")
+    
+
+    model.add_callback("on_train_epoch_end", on_train_epoch_end)
+    # model.add_callback("on_train_end", on_train_end)
+    
+    
+    model_id = 1
+    training_status[model_id] = "training"
+    
+    print("start_train")
+    model.train(data=r"D:\0_datasets\sar_video\split_car_dataset\sar.yaml",epochs=1000,batch=16,imgsz=640,device="0")
+
+
+
 
     
 @app.on_event("startup")
@@ -927,6 +920,6 @@ async def start_background_task():
     async def broadcaster():
         while True:
             msg = await message_queue.get()
-            await manager.broadcast_to_model(0, msg)
+            await manager.broadcast_to_model(1, msg)
 
     asyncio.create_task(broadcaster())
