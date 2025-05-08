@@ -544,7 +544,7 @@ async def model_train(request: ModelTrainRequest, authorization: Optional[str] =
     if use_real_training:
         # 使用真实训练函数
         # asyncio.create_task(train_yolo_model(request.model_id, request.datasets_id, request.train_details))
-        asyncio.create_task(train_example())
+        asyncio.create_task(train_example(request.model_id, request.train_details))
     else:
         # 使用示例训练结果
         asyncio.create_task(send_example_training_results(request.model_id, request.train_details))
@@ -639,7 +639,9 @@ class ConnectionManager:
             if not self.active_connections[model_id]:
                 del self.active_connections[model_id]
 
-    async def broadcast_to_model(self, model_id: int, message: str):
+    async def broadcast_to_model(self, message: str):
+        message_data = json.loads(message)
+        model_id = message_data.get("model_id")
         if model_id in self.active_connections:
             print(f"[Broadcast] Model ID: {model_id}, Message: {message}")
             for connection in self.active_connections[model_id]:
@@ -677,113 +679,117 @@ async def websocket_endpoint(websocket: WebSocket, model_id: int):
         print(f"WebSocket错误: {str(e)}")
         manager.disconnect(websocket, model_id)
 
-# 异步函数，用于发送训练结果
-async def send_example_training_results(model_id: int, train_details: dict):
-    # 等待一段时间，模拟训练过程
-    await asyncio.sleep(20)
+## 已过时,诸多细节与当前版本不符
+# # 异步函数，用于发送训练结果
+# async def send_example_training_results(model_id: int, train_details: dict):
+#     # 等待一段时间，模拟训练过程
+#     await asyncio.sleep(10)
     
-    # 检查CSV文件是否存在
-    csv_path = "car/results.csv"
-    if not os.path.exists(csv_path):
-        print(f"错误: 训练结果文件不存在: {csv_path}")
-        return
+#     # 检查CSV文件是否存在
+#     csv_path = "car/results.csv"
+#     if not os.path.exists(csv_path):
+#         print(f"错误: 训练结果文件不存在: {csv_path}")
+#         return
     
-    # 读取CSV文件
-    try:
-        with open(csv_path, 'r', encoding='utf-8') as csvfile:
-            csv_reader = csv.DictReader(csvfile)
-            rows = list(csv_reader)
+#     # 读取CSV文件
+#     try:
+#         with open(csv_path, 'r', encoding='utf-8') as csvfile:
+#             csv_reader = csv.DictReader(csvfile)
+#             rows = list(csv_reader)
             
-            # 如果没有数据，发送空数据消息
-            if not rows:
-                print(f"没有训练结果数据: {csv_path}")
-                return
+#             # 如果没有数据，发送空数据消息
+#             if not rows:
+#                 print(f"没有训练结果数据: {csv_path}")
+#                 return
             
-            # 处理每一行数据
-            processed_rows = []
-            for row in rows:
-                processed_row = {}
-                for key, value in row.items():
-                    # 去除键名中的空格
-                    clean_key = key.strip()
-                    # 去除值中的空格
-                    value = value.strip()
-                    # 尝试转换为数值类型
-                    try:
-                        # 尝试转换为整数
-                        processed_row[clean_key] = int(value)
-                    except ValueError:
-                        try:
-                            # 如果整数转换失败，尝试转换为浮点数
-                            processed_row[clean_key] = float(value)
-                        except ValueError:
-                            # 如果都失败，保持原始字符串
-                            processed_row[clean_key] = value
-                processed_rows.append(processed_row)
+#             # 处理每一行数据
+#             processed_rows = []
+#             for row in rows:
+#                 processed_row = {}
+#                 for key, value in row.items():
+#                     # 去除键名中的空格
+#                     clean_key = key.strip()
+#                     # 去除值中的空格
+#                     value = value.strip()
+#                     # 尝试转换为数值类型
+#                     try:
+#                         # 尝试转换为整数
+#                         processed_row[clean_key] = int(value)
+#                     except ValueError:
+#                         try:
+#                             # 如果整数转换失败，尝试转换为浮点数
+#                             processed_row[clean_key] = float(value)
+#                         except ValueError:
+#                             # 如果都失败，保持原始字符串
+#                             processed_row[clean_key] = value
+#                 processed_rows.append(processed_row)
             
-            # 获取训练细节中的epochs字段
-            epochs = train_details.get('epochs', 1000)  # 默认为1000
+#             # 获取训练细节中的epochs字段
+#             epochs = train_details.get('epochs', 1000)  # 默认为1000
             
-            # 每秒发送一行数据
-            for i, row in enumerate(processed_rows):
-                # 检查训练是否被暂停
-                if model_id in training_status and training_status[model_id] == "suspend":
-                    # 发送暂停状态
-                    await manager.broadcast_to_model(model_id, json.dumps({
-                        "message": "训练已暂停",
-                        "status": "suspend"
-                    }))
-                    # 等待恢复训练
-                    while model_id in training_status and training_status[model_id] == "suspend":
-                        await asyncio.sleep(1)
-                    # 如果训练被取消，则退出
-                    if model_id not in training_status:
-                        return
+#             # 每秒发送一行数据
+#             for i, row in enumerate(processed_rows):
+#                 # 检查训练是否被暂停
+#                 if model_id in training_status and training_status[model_id] == "suspend":
+#                     # 发送暂停状态
+#                     await manager.broadcast_to_model(model_id, json.dumps({
+#                         "message": "训练已暂停",
+#                         "status": "suspend"
+#                     }))
+#                     # 等待恢复训练
+#                     while model_id in training_status and training_status[model_id] == "suspend":
+#                         await asyncio.sleep(1)
+#                     # 如果训练被取消，则退出
+#                     if model_id not in training_status:
+#                         return
                 
-                # 确定当前状态
-                if i < len(processed_rows) - 1:
-                    status = "training"  # 还有更多数据，仍在训练中
-                    # 广播消息给特定模型ID的客户端，包含数据
-                    message = json.dumps({
-                        "message": "训练结果数据",
-                        "status": status,
-                        "data": row
-                    })
-                    await manager.broadcast_to_model(model_id, message)
-                else:
-                    # 最后一行数据，判断是否提前停止
-                    current_epoch = int(row.get('epoch', 0))
-                    if current_epoch < epochs:
-                        status = "early_stop"  # 提前停止
-                    else:
-                        status = "finished"  # 正常完成
+#                 # 确定当前状态
+#                 if i < len(processed_rows) - 1:
+#                     status = "training"  # 还有更多数据，仍在训练中
+#                     # 广播消息给特定模型ID的客户端，包含数据
+#                     message = json.dumps({
+#                         "message": "训练结果数据",
+#                         "status": status,
+#                         "data": row,
+#                         "model_id": model_id
+#                     })
+#                     await manager.broadcast_to_model(model_id, message)
+#                 else:
+#                     # 最后一行数据，判断是否提前停止
+#                     current_epoch = int(row.get('epoch', 0))
+#                     if current_epoch < epochs:
+#                         status = "early_stop"  # 提前停止
+#                     else:
+#                         status = "finished"  # 正常完成
                     
-                    # 发送最后一条数据，包含状态和数据
-                    message = json.dumps({
-                        "message": "训练结果数据",
-                        "status": status,
-                        "data": row
-                    })
-                    await manager.broadcast_to_model(model_id, message)
+#                     # 发送最后一条数据，包含状态和数据
+#                     message = json.dumps({
+#                         "message": "训练结果数据",
+#                         "status": training,
+#                         "data": row,
+#                         "model_id": model_id
+#                     })
+#                     await manager.broadcast_to_model(model_id, message)
                     
-                    # 发送完成状态，不包含数据
-                    message = json.dumps({
-                        "message": "训练结果数据发送完成",
-                        "status": status
-                    })
-                    await manager.broadcast_to_model(model_id, message)
+#                     # 发送完成状态，不包含数据
+#                     message = json.dumps({
+#                         "message": "训练结果数据发送完成",
+#                         "status": status,
+#                         "model_id": model_id
+#                     })
+#                     await manager.broadcast_to_model(model_id, message)
                 
-                await asyncio.sleep(1)  # 每秒发送一次
+#                 await asyncio.sleep(1)  # 每秒发送一次
             
-            # 清理训练状态
-            if model_id in training_status:
-                del training_status[model_id]
+#             # 清理训练状态
+#             if model_id in training_status:
+#                 del training_status[model_id]
             
-    except Exception as e:
-        print(f"发送训练结果时出错: {str(e)}")
-        # 清理训练状态
-        if model_id in training_status:
-            del training_status[model_id]
+#     except Exception as e:
+#         print(f"发送训练结果时出错: {str(e)}")
+#         # 清理训练状态
+#         if model_id in training_status:
+#             del training_status[model_id]
 
 
 def websocket_publish(message):
@@ -792,62 +798,52 @@ def websocket_publish(message):
     else:
         print("主事件循环未设置，无法发送消息。")
 
-# 训练回调
-def on_train_epoch_end(trainer):
-    print("进入训练后回调函数")
+def on_train_epoch_end(model_id:int):
+    def callback(trainer):
+        print("进入训练后回调函数")
     
-    # curr_epoch = trainer.epoch + 1
-    # text = f"Epoch Number: {curr_epoch}/{trainer.epochs} finished"
-    # print(text)
-    # print("-" * 50)
+        # curr_epoch = trainer.epoch + 1
+        # text = f"Epoch Number: {curr_epoch}/{trainer.epochs} finished"
+        # print(text)
+        # print("-" * 50)
 
-    # instance_variables = vars(trainer)
-    # print(instance_variables)
-    
-    try:
-        model_id = 1  # 这里应该是从训练配置中获取的模型ID
+        # instance_variables = vars(trainer)
+        # print(instance_variables)
         
-        
-        loss_dict = trainer.label_loss_items(trainer.tloss, prefix="train")
-        metrics = trainer.metrics if trainer.metrics else {}
-        # print("trainer.metrics keys:", trainer.metrics.keys())
-
-        
-        data = {
-            "epoch": trainer.epoch + 1,
-            "train/box_loss": loss_dict.get('train/box_loss'),
-            # "train/obj_loss": loss_dict.get('train/obj_loss'),
-            "train/cls_loss": loss_dict.get('train/cls_loss'),
-            "metrics/precision": metrics.get('metrics/precision(B)'),
-            "metrics/recall": metrics.get('metrics/recall(B)'),
-            "metrics/mAP_0.5": metrics.get('metrics/mAP50(B)'),
-            "metrics/mAP_0.5:0.95": metrics.get('metrics/mAP50-95(B)'),
-            "val/box_loss": metrics.get('val/box_loss'),
-            # "val/obj_loss": metrics.get('val/obj_loss'),
-            "val/cls_loss": metrics.get('val/cls_loss'),
-            # Add learning rates if needed:
-            # "x/lr0": trainer.optimizer.param_groups[0]["lr"] if hasattr(trainer, "optimizer") else None,
-            # "x/lr1": trainer.optimizer.param_groups[1]["lr"] if hasattr(trainer, "optimizer") and len(trainer.optimizer.param_groups) > 1 else None,
-            # "x/lr2": trainer.optimizer.param_groups[2]["lr"] if hasattr(trainer, "optimizer") and len(trainer.optimizer.param_groups) > 2 else None,
-        }
-
-       
-        # 构建消息
-        message = json.dumps({
-            "message": "训练结果数据",
-            "status": "training",
-            "data": data
-        })
-                
-        websocket_publish(message)
-        
+        try:
+            loss_dict = trainer.label_loss_items(trainer.tloss, prefix="train")
+            metrics = trainer.metrics if trainer.metrics else {}
+            # print("trainer.metrics keys:", trainer.metrics.keys())
             
-        #     # 清理训练状态
-        #     if model_id in training_status:
-        #         del training_status[model_id]
+            data = {
+                "epoch": trainer.epoch + 1,
+                "train/box_loss": loss_dict.get('train/box_loss'),
+                "train/dfl_loss": loss_dict.get('train/dfl_loss'),
+                "train/cls_loss": loss_dict.get('train/cls_loss'),
+                "metrics/precision": metrics.get('metrics/precision(B)'),
+                "metrics/recall": metrics.get('metrics/recall(B)'),
+                "metrics/mAP_0.5": metrics.get('metrics/mAP50(B)'),
+                "metrics/mAP_0.5:0.95": metrics.get('metrics/mAP50-95(B)'),
+                "val/box_loss": metrics.get('val/box_loss'),
+                "val/dfl_loss": metrics.get('val/dfl_loss'),
+                "val/cls_loss": metrics.get('val/cls_loss'),
+            }
         
-    except Exception as e:
-        print(f"发送训练回调数据时出错: {str(e)}")
+            # 构建消息
+            message = json.dumps({
+                "message": "训练结果数据",
+                "status": "training",
+                "data": data,
+                "model_id": model_id
+            })
+            websocket_publish(message)
+            
+        except Exception as e:
+            print(f"发送训练回调数据时出错: {str(e)}")
+            
+            
+    return callback
+    
         
 # def on_train_end(trainer):
 #     # 切换训练状态
@@ -889,28 +885,28 @@ def on_train_epoch_end(trainer):
 #         del training_status[model_id]
     
         
-async def train_example():
-    await asyncio.sleep(5)
+async def train_example(model_id: int, train_details: dict):
+    await asyncio.sleep(1)  # 等待前端建立websocket连接
     
-    threading.Thread(target=run_training_process, daemon=True).start()
+    # 启动线程并传递参数
+    threading.Thread(target=run_training_process, args=(model_id, train_details), daemon=True).start()
 
-def run_training_process():
-    model=YOLO("weights/yolov8/yolov8s.pt",task="detect")
+def run_training_process(model_id: int, train_details: dict):
+    # 初始化模型
+    model = YOLO("weights/yolov8/yolov8s.pt", task="detect")
     
-
-    model.add_callback("on_train_epoch_end", on_train_epoch_end)
+    # 添加回调函数
+    model.add_callback("on_train_epoch_end", on_train_epoch_end(model_id))
     # model.add_callback("on_train_end", on_train_end)
     
-    
-    model_id = 1
+    # 更新训练状态
     training_status[model_id] = "training"
     
-    print("start_train")
-    model.train(data=r"D:\0_datasets\sar_video\split_car_dataset\sar.yaml",epochs=1000,batch=16,imgsz=640,device="0")
-
-
-
-
+    # 直接使用train_details中的参数进行训练
+    model.train(
+        data=r"/home/cvrsg/rs_workspace/aihub/backend_simp/datasets/split_car_dataset/sar.yaml",
+        **train_details
+    )
     
 @app.on_event("startup")
 async def start_background_task():
@@ -920,6 +916,6 @@ async def start_background_task():
     async def broadcaster():
         while True:
             msg = await message_queue.get()
-            await manager.broadcast_to_model(1, msg)
+            await manager.broadcast_to_model(msg)
 
     asyncio.create_task(broadcaster())
