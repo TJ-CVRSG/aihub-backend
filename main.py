@@ -408,76 +408,76 @@ default_models = [
         "path": "D:/models/yolov8m_segment.pt"
     },
     
-    # YOLOv11系列
+    # yolo11系列
     {
         "id": 20,
-        "name": "yolov11n",
+        "name": "yolo11n",
         "task": "detect",
         "size": 7.3,
-        "path": "D:/models/yolov11n.pt"
+        "path": "D:/models/yolo11n.pt"
     },
     {
         "id": 21,
-        "name": "yolov11s",
+        "name": "yolo11s",
         "task": "detect",
         "size": 18.7,
-        "path": "D:/models/yolov11s.pt"
+        "path": "D:/models/yolo11s.pt"
     },
     {
         "id": 22,
-        "name": "yolov11m",
+        "name": "yolo11m",
         "task": "detect",
         "size": 55.8,
-        "path": "D:/models/yolov11m.pt"
+        "path": "D:/models/yolo11m.pt"
     },
     {
         "id": 23,
-        "name": "yolov11l",
+        "name": "yolo11l",
         "task": "detect",
         "size": 92.7,
-        "path": "D:/models/yolov11l.pt"
+        "path": "D:/models/yolo11l.pt"
     },
     {
         "id": 24,
-        "name": "yolov11n_cls",
+        "name": "yolo11n_cls",
         "task": "classify",
         "size": 6.8,
-        "path": "D:/models/yolov11n_classify.pt"
+        "path": "D:/models/yolo11n_classify.pt"
     },
     {
         "id": 25,
-        "name": "yolov11s_cls",
+        "name": "yolo11s_cls",
         "task": "classify",
         "size": 19.5,
-        "path": "D:/models/yolov11s_classify.pt"
+        "path": "D:/models/yolo11s_classify.pt"
     },
     {
         "id": 26,
-        "name": "yolov11m_cls",
+        "name": "yolo11m_cls",
         "task": "classify",
         "size": 57.2,
-        "path": "D:/models/yolov11m_classify.pt"
+        "path": "D:/models/yolo11m_classify.pt"
     },
     {
         "id": 27,
-        "name": "yolov11n_seg",
+        "name": "yolo11n_seg",
         "task": "segment",
         "size": 8.2,
-        "path": "D:/models/yolov11n_segment.pt"
+        "path": "D:/models/yolo11n_segment.pt"
     },
     {
         "id": 28,
-        "name": "yolov11s_seg",
+        "name": "yolo11s_seg",
         "task": "segment",
         "size": 20.3,
-        "path": "D:/models/yolov11s_segment.pt"
+        "path": "D:/models/yolo11s_segment.pt"
     },
     {
         "id": 29,
-        "name": "yolov11m_seg",
+        "name": "yolo11m_seg",
         "task": "segment",
         "size": 58.6,
-        "path": "D:/models/yolov11m_segment.pt"
+        "path": "D:/models/yolo11m_segment.pt"
     }
 ]
 
@@ -844,45 +844,45 @@ def on_train_epoch_end(model_id:int):
             
     return callback
     
+def on_train_end(model_id:int):
+    def callback(trainer):
         
-# def on_train_end(trainer):
-#     # 切换训练状态
-#     model_id = 0
+        current_epoch = trainer.epoch + 1
+        max_epochs = trainer.epochs
+        
+        # 如果是最后一个epoch，状态为finished
+        if current_epoch >= max_epochs:
+            status = "finished"
+            training_status[model_id] = "finished"
+            print(f"\n训练完成！总轮次: {current_epoch}/{max_epochs}")
+        # 检查是否早停
+        elif current_epoch < max_epochs:
+            status = "early_stop"
+            training_status[model_id] = "early_stop"
+            print(f"\n训练提前终止！轮次: {current_epoch}/{max_epochs}")
+        
+                
+        # 获取最佳模型的相对路径
+        relative_path = str(trainer.best)
+        # 获取当前工作目录并与相对路径结合
+        absolute_path = os.path.join(os.getcwd(), relative_path)
+        
+        # 构建消息
+        message = json.dumps({
+            "model_id": model_id,
+            "message": "训练完成",
+            "status": status,
+            "best_model_path": absolute_path  # 使用绝对路径
+        })
+        
+        websocket_publish(message)
 
-#     current_epoch = trainer.epoch + 1
-#     max_epochs = trainer.epochs
-    
-#     # 如果是最后一个epoch，状态为finished
-#     if current_epoch >= max_epochs:
-#         status = "finished"
-#         training_status[model_id] = "finished"
-#         print(f"\n训练完成！总轮次: {current_epoch}/{max_epochs}")
-#     # 检查是否早停（如果有early_stop标志或者通过其他条件判断）
-#     elif current_epoch < max_epochs:
-#         status = "early_stop"
-#         training_status[model_id] = "early_stop"
-#         print(f"\n训练提前终止！轮次: {current_epoch}/{max_epochs}")
-    
-#     # 计算整体训练时间
-#     total_training_time = trainer.end_time - trainer.start_time
-#     print(f"训练结束！模型ID: {model_id}")
-#     print(f"总训练时间: {total_training_time}")
-    
-#     message = json.dumps({
-#         "message": "训练完成",
-#         "status": status,
-#         "total_training_time": str(total_training_time),
-#         "best_epoch": best_epoch,
-#         "best_accuracy": best_accuracy,
-#         "best_model_path": trainer.best
-#     })
-    
-#     websocket_publish(message)
-
-#     print(f"最佳训练批次模型地址:{trainer.best} 精度: {trainer.best_accuracy}")
-    
-#     if model_id in training_status:
-#         del training_status[model_id]
+        print(f"最佳训练批次模型地址:{absolute_path}")
+        
+        if model_id in training_status:
+            del training_status[model_id]
+        
+    return callback
     
         
 async def train_example(model_id: int, train_details: dict):
@@ -892,12 +892,22 @@ async def train_example(model_id: int, train_details: dict):
     threading.Thread(target=run_training_process, args=(model_id, train_details), daemon=True).start()
 
 def run_training_process(model_id: int, train_details: dict):
-    # 初始化模型
-    model = YOLO("weights/yolov8/yolov8s.pt", task="detect")
+    
+    # 从default_models中获取模型信息，后续替换为从数据库中获取
+    model_info = next((m for m in default_models if m["id"] == model_id), None)
+    if model_info:
+        model_name = model_info["name"]
+        model_task = model_info["task"]
+        # 构造权重文件路径
+        weights_path = f"weights/{model_name}.pt"
+        model = YOLO(weights_path, task=model_task)
+    
+    # # 初始化模型
+    # model = YOLO("weights/yolov8s.pt", task="detect")
     
     # 添加回调函数
     model.add_callback("on_train_epoch_end", on_train_epoch_end(model_id))
-    # model.add_callback("on_train_end", on_train_end)
+    model.add_callback("on_train_end", on_train_end(model_id))
     
     # 更新训练状态
     training_status[model_id] = "training"

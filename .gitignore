@@ -4,3 +4,5 @@ weights/*
 
 # 但保留 .gitkeep（或其他标记文件）
 !weights/.gitkeep
+
+/datasets
